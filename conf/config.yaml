@@ -1,0 +1,60 @@
+defaults:
+  - _self_
+
+# --- System Settings ---
+num_islands: 4
+migration_interval: 2.0  # seconds
+poll_interval: 1.0       # seconds
+
+# --- Problem Definitions ---
+# Change '_target_' to switch problems without touching code!
+#task:
+#  _target_: src.problems.XORTask
+#  input_size: 2
+#  output_size: 1
+#task:
+#  _target_: src.problems.CartPoleTask
+#  # Input/Output sizes are hardcoded in the class __init__ for safety
+#
+## --- Neuroevolution Hyperparameters ---
+## Use these for the above 3 problems.
+#ga:
+#  genome_type: "graph"
+#  pop_size: 50
+#  hidden_size: 8
+#  mutation_power: 0.1
+#  mutation_rate: 0.5
+#  elitism_count: 2
+
+# --- PROBLEM SPECIFIC SETUPS ---
+# --- Rastrigin ---
+#task:
+#  _target_: src.problems.RastriginTask
+#  input_size: 10   # Higher = Harder
+#  output_size: 10  # Must match input_size for the "Network Output" method
+## 1. Slow down the spread of clones
+#
+#ga:
+#  genome_type: "graph"
+#  pop_size: 100
+#  hidden_size: 8
+#
+#  # 2. The "Jump" Power
+#  mutation_power: 1.5    # (Was 0.1) Small mutations can't escape Rastrigin valleys.
+#  mutation_rate: 0.8     # (Was 0.5) Mutate almost everyone.
+#
+#  # 3. Stop protecting clones
+#  elitism_count: 1       # (Was 2) Only keep the absolute best, force others to change.
+
+
+## --- MountainCar ---
+#task:
+#  _target_: src.problems.MountainCarTask
+#  # Input/Output sizes handled by class
+#ga:
+#  genome_type: "graph"
+#  pop_size: 100        # Needs larger pop to find the "rocking" motion
+#  hidden_size: 16      # Needs slightly more capacity than XOR
+#  mutation_power: 0.2  # Stronger mutations help break out of the valley
+#  mutation_rate: 0.6
+#  elitism_count: 5
