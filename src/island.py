@@ -67,8 +67,6 @@ class Island:
                     self.shared_state["champion"] = copy.deepcopy(champion)
                     self.shared_state["gen"] = self.population.generation
 
-
-
                 # 4. Evolve
                 self.population.evolve_step()
                 time.sleep(0.01)

@@ -76,8 +76,9 @@ class CartPoleTask:
         state, _ = self.env.reset()
         total_reward = 0
         done = False
+        truncated = False
 
-        while not done:
+        while not (done or truncated):
             # Convert state to tensor
             state_t = torch.FloatTensor(state).unsqueeze(0)
 

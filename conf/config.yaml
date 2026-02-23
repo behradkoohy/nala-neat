@@ -25,6 +25,7 @@ poll_interval: 1.0       # seconds
 #  mutation_power: 0.1
 #  mutation_rate: 0.5
 #  elitism_count: 2
+#  crossover_enabled: True
 
 # --- PROBLEM SPECIFIC SETUPS ---
 # --- Rastrigin ---
@@ -48,13 +49,14 @@ poll_interval: 1.0       # seconds
 
 
 ## --- MountainCar ---
-#task:
-#  _target_: src.problems.MountainCarTask
-#  # Input/Output sizes handled by class
-#ga:
-#  genome_type: "graph"
-#  pop_size: 100        # Needs larger pop to find the "rocking" motion
-#  hidden_size: 16      # Needs slightly more capacity than XOR
-#  mutation_power: 0.2  # Stronger mutations help break out of the valley
-#  mutation_rate: 0.6
-#  elitism_count: 5
+task:
+  _target_: src.problems.MountainCarTask
+  # Input/Output sizes handled by class
+ga:
+  genome_type: "graph"
+  pop_size: 100        # Needs larger pop to find the "rocking" motion
+  hidden_size: 16      # Needs slightly more capacity than XOR
+  mutation_power: 0.2  # Stronger mutations help break out of the valley
+  mutation_rate: 0.6
+  elitism_count: 5
+  crossover_enabled: True

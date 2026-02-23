@@ -1,12 +1,13 @@
+import copy
+import pickle
+import time
 import hydra
+import mlflow
 import ray
-import time
 import torch
-from omegaconf import DictConfig
-from src.island import Island
 import gymnasium as gym
-import torch
-import time
+from omegaconf import DictConfig, OmegaConf
+from src.island import Island
 
 
 def watch_champion(genome):
@@ -70,56 +71,94 @@ def calculate_diversity(champions):
 def main(cfg: DictConfig):
     # Initialize Ray
     if not ray.is_initialized():
-        ray.init(ignore_reinit_error=True)
+        ray.init(
+            ignore_reinit_error=True,
+            _temp_dir="/tmp/ray_minimal",
+            log_to_driver=False,
+            include_dashboard=False
+        )
 
-    print(f"--> Spawning {cfg.num_islands} islands for task: {cfg.task._target_}")
+    # Initialize MLflow
+    mlflow.set_experiment("nala-neat")
+    
+    with mlflow.start_run():
+        # Log configuration parameters
+        mlflow.log_params(OmegaConf.to_container(cfg, resolve=True))
 
-    # Spawn Islands (Actors)
-    islands = [Island.remote(i, cfg) for i in range(cfg.num_islands)]
+        print(f"--> Spawning {cfg.num_islands} islands for task: {cfg.task._target_}")
 
-    try:
-        while True:
-            time.sleep(cfg.poll_interval)
+        # Spawn Islands (Actors)
+        islands = [Island.remote(i, cfg) for i in range(cfg.num_islands)]
 
-            # 1. Gather Champions
-            futures = [island.get_champion.remote() for island in islands]
-            champions = ray.get(futures)
+        step = 0
+        global_best_fitness = -float('inf')
+        global_best_genome = None
 
-            # 2. Filter valid champions (ignore startups)
-            valid_champs = [c for c in champions if c is not None]
-            if not valid_champs:
-                print("Waiting for first generation...")
-                continue
+        try:
+            while True:
+                time.sleep(cfg.poll_interval)
+                step += 1
 
-            # 3. Metrics & Logging
-            div_score = calculate_diversity(valid_champs)
-            best_fitness = max(c.fitness for c in valid_champs)
-            print(f"Global Diversity: {div_score:.5f} | Best Fitness: {best_fitness:.4f}")
+                # 1. Gather Champions
+                futures = [island.get_champion.remote() for island in islands]
+                champions = ray.get(futures)
 
-            """# 4. Migration (Ring Topology)
-            # Sends Champ[0] -> Island[1], Champ[1] -> Island[2], etc.
-            if len(valid_champs) == cfg.num_islands:
-                for i in range(len(islands)):
-                    source_champ = valid_champs[i]
-                    target_island = islands[(i + 1) % len(islands)]
-                    target_island.receive_migrant.remote(source_champ)
-            """
-            # 4. Migration (filtered)
-            if len(valid_champs) == cfg.num_islands:
-                for i in range(len(islands)):
-                    source_champ = valid_champs[i]
-                    target_island = islands[(i + 1) % len(islands)]
+                # 2. Filter valid champions (ignore startups)
+                valid_champs = [c for c in champions if c is not None]
+                if not valid_champs:
+                    print("Waiting for first generation...")
+                    continue
 
-                    target_champ = valid_champs[(i + 1) % len(islands)]
-                    if target_champ.fitness < 3.9:
+                # 3. Metrics & Logging
+                div_score = calculate_diversity(valid_champs)
+
+                # Find best in this generation
+                current_best_champ = max(valid_champs, key=lambda c: c.fitness)
+                best_fitness = current_best_champ.fitness
+
+                if best_fitness > global_best_fitness:
+                    global_best_fitness = best_fitness
+                    global_best_genome = copy.deepcopy(current_best_champ)
+                    print(f"New Global Best: {global_best_fitness:.4f}")
+
+                print(f"Global Diversity: {div_score:.5f} | Best Fitness: {best_fitness:.4f}")
+                
+                mlflow.log_metric("global_diversity", div_score, step=step)
+                mlflow.log_metric("best_fitness", best_fitness, step=step)
+                mlflow.log_metric("global_best_fitness", global_best_fitness, step=step)
+
+                """# 4. Migration (Ring Topology)
+                # Sends Champ[0] -> Island[1], Champ[1] -> Island[2], etc.
+                if len(valid_champs) == cfg.num_islands:
+                    for i in range(len(islands)):
+                        source_champ = valid_champs[i]
+                        target_island = islands[(i + 1) % len(islands)]
                         target_island.receive_migrant.remote(source_champ)
+                """
+                # 4. Migration (filtered)
+                if len(valid_champs) == cfg.num_islands:
+                    for i in range(len(islands)):
+                        source_champ = valid_champs[i]
+                        target_island = islands[(i + 1) % len(islands)]
 
-            # Debug: used for checking champion in cartpole. could be extended.
-            # watch_champion(champions[0])
+                        target_champ = valid_champs[(i + 1) % len(islands)]
+                        if target_champ.fitness < 3.9:
+                            target_island.receive_migrant.remote(source_champ)
 
-    except KeyboardInterrupt:
-        print("\nStopping Evolution...")
-        ray.shutdown()
+                # Debug: used for checking champion in cartpole. could be extended.
+                # watch_champion(champions[0])
+
+        except KeyboardInterrupt:
+            print("\nStopping Evolution...")
+
+            if global_best_genome:
+                print(f"Saving best genome (Fitness: {global_best_fitness})...")
+                filename = "best_genome.pkl"
+                with open(filename, "wb") as f:
+                    pickle.dump(global_best_genome, f)
+                mlflow.log_artifact(filename)
+
+            ray.shutdown()
 
 
 if __name__ == "__main__":

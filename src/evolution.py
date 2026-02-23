@@ -246,11 +246,16 @@ class Population:
         while len(next_gen) < self.cfg.pop_size:
             parent1 = random.choice(self.individuals[:15])
             parent2 = random.choice(self.individuals[:15])
+            if self.cfg.crossover_enabled:
+                child = self.genome_class.crossover(parent1, parent2)
+                child.mutate(self.cfg.mutation_power, self.cfg.mutation_rate)
 
-            child = self.genome_class.crossover(parent1, parent2)
-            child.mutate(self.cfg.mutation_power, self.cfg.mutation_rate)
+            else:
+                child = parent1 if parent1.fitness < parent2.fitness else parent2
+                child.mutate(self.cfg.mutation_power, self.cfg.mutation_rate)
 
             next_gen.append(child)
+
 
         self.individuals = next_gen
         self.generation += 1
